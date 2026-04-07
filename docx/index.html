@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOCX Contract Standardizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#f5f5f7;--sf:#fff;--sf2:#f0f0f3;--sf3:#e8e8ed;
+--bd:#d4d4dc;--bdh:#b8b8c4;--tx:#1a1a2e;--tx2:#6b6b82;--tx3:#9898ac;--tx4:#b8b8c8;
+--ac:#6366f1;--ach:#5558e6;--ag:rgba(99,102,241,.1);--ags:rgba(99,102,241,.2);
+--ok:#0d9f6e;--okbg:rgba(13,159,110,.08);--okb:rgba(13,159,110,.2);
+--er:#dc2626;--erbg:rgba(220,38,38,.06);
+--wn:#d97706;--wnbg:rgba(217,119,6,.06);
+--r:12px;--rs:8px;--rx:6px;
+--f:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+--m:'JetBrains Mono',monospace;
+--sh:0 1px 3px rgba(0,0,0,.06);--shl:0 4px 16px rgba(0,0,0,.08);
+--gd:rgba(99,102,241,.04);
+}
+[data-theme="dark"]{
+--bg:#0a0a0c;--sf:#131318;--sf2:#1a1a22;--sf3:#22222e;
+--bd:#2a2a38;--bdh:#3a3a4d;--tx:#e8e8ef;--tx2:#8888a0;--tx3:#5a5a72;--tx4:#44445a;
+--ac:#6366f1;--ach:#818cf8;--ag:rgba(99,102,241,.15);--ags:rgba(99,102,241,.3);
+--ok:#34d399;--okbg:rgba(52,211,153,.08);--okb:rgba(52,211,153,.2);
+--er:#f87171;--erbg:rgba(248,113,113,.08);
+--wn:#fbbf24;--wnbg:rgba(251,191,36,.08);
+--sh:0 4px 24px rgba(0,0,0,.3);--shl:0 8px 40px rgba(0,0,0,.4);
+--gd:rgba(99,102,241,.03);
+}
+html{font-size:15px}
+body{font-family:var(--f);background:var(--bg);color:var(--tx);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--gd) 1px,transparent 1px),linear-gradient(90deg,var(--gd) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:.8rem 1.5rem 4rem}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.8rem;animation:fadeIn .5s;flex-wrap:wrap;gap:8px}
+.topbar-l{display:flex;align-items:center;gap:8px;font-size:.72rem;font-weight:500;color:var(--ac);letter-spacing:.03em}
+.topbar-l svg{width:13px;height:13px;flex-shrink:0}
+.topbar-r{display:flex;align-items:center;gap:6px}
+.tb{display:flex;align-items:center;justify-content:center;gap:4px;padding:5px 11px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--rx);color:var(--tx2);font-family:var(--f);font-size:.73rem;font-weight:500;cursor:pointer;transition:all .2s;user-select:none}
+.tb:hover{background:var(--sf2);border-color:var(--bdh);color:var(--tx)}
+.tb.on{background:var(--ag);border-color:var(--ac);color:var(--ac)}
+.tb svg{width:13px;height:13px}
+.tdiv{width:1px;height:16px;background:var(--bd);margin:0 2px}
+
+.hdr{margin-bottom:1.8rem;animation:fadeIn .6s}
+.hdr h1{font-size:1.7rem;font-weight:700;letter-spacing:-.03em;background:linear-gradient(135deg,var(--tx),var(--ac));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.3rem}
+.hdr p{color:var(--tx2);font-size:.85rem;font-weight:300}
+
+.cfg{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:1.1rem;animation:slideUp .4s;display:flex;flex-direction:column;gap:14px}
+.cfg-t{font-size:.72rem;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+
+/* Horizontal task switches — left aligned */
+.tasks-row{display:flex;gap:6px;flex-wrap:wrap}
+.tsk{display:flex;align-items:center;gap:7px;padding:6px 14px 6px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:20px;cursor:pointer;transition:all .2s;user-select:none}
+.tsk:hover{border-color:var(--bdh)}
+.tsk.on{border-color:var(--ac);background:var(--ag)}
+.sw{position:relative;width:28px;height:16px;background:var(--sf3);border-radius:8px;border:1px solid var(--bd);transition:all .2s;flex-shrink:0}
+.tsk.on .sw{background:var(--ac);border-color:var(--ac)}
+.sw::after{content:'';position:absolute;top:1.5px;left:1.5px;width:11px;height:11px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tsk.on .sw::after{transform:translateX(12px)}
+.tsk-name{font-size:.78rem;font-weight:500;white-space:nowrap}
+
+/* Tooltip — positioned via JS to stay in viewport */
+.q{position:relative;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;color:var(--tx3);cursor:help;font-size:.6rem;font-weight:700;border-radius:50%;border:1px solid var(--tx3);flex-shrink:0;vertical-align:middle}
+.tip{display:none;position:fixed;width:280px;max-width:90vw;padding:10px 12px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);font-size:.72rem;font-weight:400;color:var(--tx);line-height:1.5;box-shadow:var(--shl);z-index:9999;pointer-events:none;white-space:normal;text-align:left}
+.tip.show{display:block}
+
+/* Config fields */
+.cfg-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld-top{display:flex;align-items:center;gap:4px}
+.fld-top label{font-size:.71rem;font-weight:500;color:var(--tx2);letter-spacing:.02em}
+.fld input{width:100%;padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);border-radius:var(--rx);color:var(--tx);font-family:var(--m);font-size:.78rem;outline:none;transition:border-color .2s}
+.fld input:focus{border-color:var(--ac)}
+.fld input::placeholder{color:var(--tx3)}
+
+.pv{margin-top:12px;padding:7px 11px;background:var(--sf2);border-radius:var(--rx);font-size:.75rem;color:var(--tx2);border:1px solid var(--bd);font-family:var(--m);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.pv-label{font-family:var(--f);margin-right:4px}
+.pv .pre{color:var(--ac);font-weight:500}
+.pv .base{color:var(--tx3)}
+.pv .suf{color:var(--ac);font-weight:500}
+.pv .ext{color:var(--tx3)}
+
+.dz{position:relative;border:2px dashed var(--bd);border-radius:var(--r);padding:2.2rem 1.5rem;text-align:center;cursor:pointer;transition:all .25s;background:var(--sf);overflow:hidden}
+.dz::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,var(--ag) 0%,transparent 70%);opacity:0;transition:opacity .3s}
+.dz:hover,.dz.over{border-color:var(--ac);background:var(--sf2)}
+.dz:hover::before,.dz.over::before{opacity:1}
+.dz-icon{position:relative;width:48px;height:48px;margin:0 auto .7rem;display:flex;align-items:center;justify-content:center;background:var(--sf3);border-radius:12px;border:1px solid var(--bd)}
+.dz-icon svg{width:22px;height:22px;color:var(--ac)}
+.dz-text{position:relative}
+.dz-text strong{display:block;font-size:.9rem;font-weight:600;margin-bottom:.2rem}
+.dz-text span{font-size:.75rem;color:var(--tx2)}
+.dz-text .br{color:var(--ac);text-decoration:underline;text-underline-offset:3px}
+input[type="file"]{display:none}
+
+.fl{margin-top:1rem;display:flex;flex-direction:column;gap:6px;animation:slideUp .3s}
+.fi{padding:.65rem .85rem;background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);transition:all .2s}
+.fi:hover{border-color:var(--bdh)}
+.fi-top{display:flex;align-items:center;gap:10px}
+.fi-icon{flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--ag);color:var(--ac);border:1px solid rgba(99,102,241,.2)}
+.fi-info{flex:1;min-width:0}
+.fi-orig{font-size:.72rem;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi-out{font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-family:var(--m)}
+.fi-meta{font-size:.68rem;color:var(--tx2);margin-top:2px}
+.fi-actions{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.st{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:16px;font-size:.66rem;font-weight:500}
+.st-p{background:var(--sf3);color:var(--tx2)}
+.st-w{background:var(--ag);color:var(--ac)}
+.st-d{background:var(--okbg);color:var(--ok)}
+.st-e{background:var(--erbg);color:var(--er)}
+.st-n{background:var(--wnbg);color:var(--wn)}
+.spinner{width:10px;height:10px;border:2px solid transparent;border-top-color:var(--ac);border-radius:50%;animation:spin .6s linear infinite}
+.ib{flex-shrink:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--tx3);cursor:pointer;border-radius:5px;transition:all .2s}
+.ib:hover{background:var(--sf2);color:var(--tx)}
+.ib.dl:hover{color:var(--ok)}
+.ib.rm:hover{background:var(--erbg);color:var(--er)}
+.ib svg{width:13px;height:13px}
+
+.fi-tasks{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.ft{display:flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:.65rem;font-weight:500;cursor:pointer;user-select:none;transition:all .2s;border:1px solid var(--bd);background:var(--sf2);color:var(--tx3)}
+.ft.on{border-color:var(--ac);background:var(--ag);color:var(--ac)}
+.ft.done{border-color:var(--ok);background:var(--okbg);color:var(--ok);cursor:default;opacity:.8}
+.ft.off-done{border-color:var(--bd);background:var(--sf2);color:var(--tx3);cursor:default;opacity:.5}
+.ft-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+.prog{margin-top:1rem;animation:slideUp .3s}
+.prog-info{display:flex;justify-content:space-between;font-size:.72rem;color:var(--tx2);margin-bottom:5px}
+.prog-bar{height:3px;background:var(--sf3);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--ac),var(--ach));border-radius:2px;transition:width .3s}
+
+.acts{margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;animation:slideUp .3s}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-family:var(--f);font-size:.82rem;font-weight:500;border:none;cursor:pointer;transition:all .2s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn svg{width:14px;height:14px}
+.btn-p{background:var(--ac);color:#fff;box-shadow:0 2px 10px var(--ags)}
+.btn-p:hover:not(:disabled){background:var(--ach);transform:translateY(-1px)}
+.btn-g{background:transparent;color:var(--tx2)}
+.btn-g:hover{color:var(--tx);background:var(--sf2)}
+.btn-s{background:var(--okbg);color:var(--ok);border:1px solid var(--okb)}
+.btn-s:hover:not(:disabled){opacity:.85}
+
+.sum{margin-top:1rem;padding:.8rem 1rem;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);animation:slideUp .3s}
+.sum-r{display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0}
+.sum-l{color:var(--tx2)}.sum-v{font-weight:500;font-family:var(--m);font-size:.76rem}
+.sum-v.hl{color:var(--ok)}
+
+@media(max-width:700px){
+.app{padding:.8rem 1rem 3rem}
+.hdr h1{font-size:1.3rem}
+.dz{padding:1.6rem 1rem}
+.cfg-fields{grid-template-columns:1fr}
+.acts{flex-direction:column}.btn{justify-content:center}
+.fi-top{flex-wrap:wrap}
+.topbar{flex-direction:column;align-items:flex-start}
+.tasks-row{flex-direction:column}
+}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast-c{position:fixed;bottom:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.toast{padding:8px 13px;background:var(--sf2);border:1px solid var(--bd);border-radius:var(--rs);font-size:.76rem;color:var(--tx);box-shadow:var(--shl);animation:toastIn .3s;max-width:300px}
+.toast.error{border-left:3px solid var(--er)}.toast.success{border-left:3px solid var(--ok)}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast-c" id="toasts"></div>
+<!-- Single shared tooltip element, positioned by JS -->
+<div class="tip" id="gtip"></div>
+<script>
+const L={ko:{
+title:'DOCX 계약서 표준화 처리도구',sub:'.docx 파일의 내장 폰트, 변경 추적, 메타데이터를 정리합니다',
+badge:'Client-Side · 서버 업로드 없음',
+drop:'.docx 파일을 여기에 놓거나',browse:'파일 찾기',dropH:'여러 파일 동시 선택 · 최대 100MB',
+prefix:'접두사',suffix:'접미사',author:'저자명',
+prefPh:'예: cleaned_',sufPh:'예: .clean',authPh:'기본: LEGAL',
+prefTip:'저장될 파일명 앞에 추가되는 문자열입니다.',
+sufTip:'저장될 파일명 뒤(.docx 확장자 앞)에 추가되는 문자열입니다.',
+authTip:'문서의 작성자 이름으로 설정됩니다. "클린본" 작업이 비활성일 때, 변경 추적의 수정 제안자 이름도 이 값으로 통일됩니다.',
+pvLabel:'저장될 파일명:',
+tFont:'삽입폰트 제거',tFontS:'삽입폰트',
+tRev:'클린본(변경추적수락)',tRevS:'클린본',
+tComm:'댓글 제거',tCommS:'댓글',
+tMeta:'메타데이터 제거',tMetaS:'메타데이터',
+tFontTip:'문서에 삽입된 폰트 데이터를 제거합니다. 일부 법무검토 솔루션에서 업로드 오류를 유발하는 원인을 해결하며, 파일 용량도 줄어듭니다.',
+tRevTip:'수정제안본·레드라인본의 모든 변경 사항을 수락하여, 추적 표시 없는 클린 문서로 만듭니다. 삭제 제안은 반영되고, 삽입 제안은 본문에 확정됩니다.',
+tCommTip:'문서에 달린 모든 댓글과 답글을 삭제합니다. 검토 과정에서 작성된 메모, 코멘트, 토론 스레드를 완전히 정리하여 깔끔한 최종본을 만듭니다.',
+tMetaTip:'문서 속성에 저장된 작성자·회사명 등 개인정보를 삭제하고, 생성/수정 일시를 현재 시각으로 초기화합니다. 외부 공유 전 민감정보 유출을 방지합니다.',
+taskSec:'수행 작업 (일괄)',cfgSec:'파일명 설정',
+pending:'대기',processing:'처리중',done:'완료',nochange:'변경없음',error:'오류',
+go:'처리 시작',dl:'다운로드',dlAll:'ZIP 일괄 다운로드',clear:'전체 비우기',
+sumF:'처리 파일',sumI:'정리 항목',sumS:'크기 변화',
+dU:'개 완료',eU:'개 오류',nU:'개 변경없음',u:'개',
+prog:'처리중...',remove:'제거',
+tDone:'개 파일 처리 완료',tNoc:'개 파일 변경없음',
+tDocx:'.docx 파일만 지원됩니다',tBig:'100MB 초과',minT:'최소 1개 작업을 선택하세요',
+},en:{
+title:'DOCX Contract Standardizer',sub:'Clean embedded fonts, tracked changes, and metadata from .docx files',
+badge:'Client-Side · No Server Upload',
+drop:'Drop .docx files here or',browse:'browse files',dropH:'Multiple files · Max 100MB each',
+prefix:'Prefix',suffix:'Suffix',author:'Author',
+prefPh:'e.g. cleaned_',sufPh:'e.g. .clean',authPh:'Default: LEGAL',
+prefTip:'String prepended to the output filename.',
+sufTip:'String appended before the .docx extension.',
+authTip:'Sets the document author name. When "Clean Copy" is disabled, revision proposer names are also unified to this value.',
+pvLabel:'Output filename:',
+tFont:'Remove Embedded Fonts',tFontS:'Fonts',
+tRev:'Clean Copy (Accept Changes)',tRevS:'Clean Copy',
+tComm:'Remove Comments',tCommS:'Comments',
+tMeta:'Remove Metadata',tMetaS:'Metadata',
+tFontTip:'Removes font data embedded in the document. Resolves upload errors in some legal review platforms and reduces file size.',
+tRevTip:'Accepts all tracked changes (insertions, deletions, formatting) to produce a clean document without revision marks.',
+tCommTip:'Deletes all comments and replies from the document. Removes notes, comments, and discussion threads created during review for a clean final copy.',
+tMetaTip:'Strips author, company, and other personal info from document properties. Resets creation/modification dates to now. Prevents sensitive data leaks before external sharing.',
+taskSec:'Tasks (Global)',cfgSec:'Filename Settings',
+pending:'Pending',processing:'Processing',done:'Done',nochange:'No change',error:'Error',
+go:'Start',dl:'Download',dlAll:'Download All (ZIP)',clear:'Clear All',
+sumF:'Processed',sumI:'Items Cleaned',sumS:'Size Change',
+dU:' done',eU:' error(s)',nU:' unchanged',u:'',
+prog:'Processing...',remove:'Remove',
+tDone:' file(s) processed',tNoc:' file(s) unchanged',
+tDocx:'Only .docx files supported',tBig:'Exceeds 100MB',minT:'Select at least one task',
+}};
+function t(k){return L[S.lang]?.[k]||L.en[k]||k}
+
+// ===== ENGINE (same as before, compact) =====
+const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const FREL='http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
+const FX=['odttf','ttf','ttc','otf'];
+function rx(e){return e.async('uint8array').then(d=>{let s=new TextDecoder('utf-8').decode(d);if(s.charCodeAt(0)===0xFEFF)s=s.substring(1);return s})}
+function px(s){return new DOMParser().parseFromString(s,'text/xml')}
+function sx(d){let s=new XMLSerializer().serializeToString(d);if(!s.startsWith('<?xml'))s='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+s;return s}
+
+async function doFont(z){let c=0;const ps=[];z.forEach((p,e)=>{if(p.startsWith('word/fonts/')&&!e.dir)ps.push(p)});for(const p of ps){z.remove(p);c++}
+const ft=z.file('word/fontTable.xml');if(ft){const d=px(await rx(ft));if(!d.querySelector('parsererror')){for(const tag of['embedRegular','embedBold','embedItalic','embedBoldItalic']){const els=[...d.getElementsByTagNameNS(W,tag)];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e))}z.file('word/fontTable.xml',sx(d))}}
+const rp='word/_rels/fontTable.xml.rels',rf=z.file(rp);if(rf){const d=px(await rx(rf));if(!d.querySelector('parsererror')){[...d.getElementsByTagName('Relationship')].filter(r=>r.getAttribute('Type')===FREL).forEach(r=>{r.parentNode.removeChild(r);c++});if(d.getElementsByTagName('Relationship').length===0)z.remove(rp);else z.file(rp,sx(d))}}
+const ct=z.file('[Content_Types].xml');if(ct){const d=px(await rx(ct));if(!d.querySelector('parsererror')){const df=[...d.getElementsByTagName('Default')].filter(x=>FX.includes((x.getAttribute('Extension')||'').toLowerCase()));const ov=[...d.getElementsByTagName('Override')].filter(o=>{const p=(o.getAttribute('PartName')||'').toLowerCase();return p.includes('/fonts/')||FX.some(e=>p.endsWith('.'+e))});c+=df.length+ov.length;df.forEach(x=>x.parentNode.removeChild(x));ov.forEach(x=>x.parentNode.removeChild(x));z.file('[Content_Types].xml',sx(d))}}
+const st=z.file('word/settings.xml');if(st){const d=px(await rx(st));if(!d.querySelector('parsererror')){for(const tag of['embedTrueTypeFonts','embedSystemFonts','saveSubsetFonts']){const els=[...d.getElementsByTagNameNS(W,tag)];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e))}z.file('word/settings.xml',sx(d))}}
+return c}
+
+function accRev(doc){let c=0;
+for(const tag of['rPrChange','pPrChange','sectPrChange','tblPrChange','tblGridChange','tcPrChange','trPrChange','tblPrExChange','numberingChange']){const els=[...doc.getElementsByTagNameNS(W,tag)];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e))}
+let a;while((a=[...doc.getElementsByTagNameNS(W,'ins')]).length>0){for(const e of a){if(e.parentNode?.localName==='rPr'){e.parentNode.removeChild(e);c++;continue}while(e.firstChild)e.parentNode.insertBefore(e.firstChild,e);e.parentNode.removeChild(e);c++}}
+while((a=[...doc.getElementsByTagNameNS(W,'del')]).length>0){for(const e of a){if(e.parentNode?.localName==='rPr'){e.parentNode.removeChild(e);c++;continue}e.parentNode.removeChild(e);c++}}
+while((a=[...doc.getElementsByTagNameNS(W,'moveFrom')]).length>0){for(const e of a){if(e.parentNode?.localName==='rPr'){e.parentNode.removeChild(e);c++;continue}e.parentNode.removeChild(e);c++}}
+while((a=[...doc.getElementsByTagNameNS(W,'moveTo')]).length>0){for(const e of a){if(e.parentNode?.localName==='rPr'){e.parentNode.removeChild(e);c++;continue}while(e.firstChild)e.parentNode.insertBefore(e.firstChild,e);e.parentNode.removeChild(e);c++}}
+for(const tag of['moveFromRangeStart','moveFromRangeEnd','moveToRangeStart','moveToRangeEnd','customXmlDelRangeStart','customXmlDelRangeEnd','customXmlInsRangeStart','customXmlInsRangeEnd','cellDel','cellMerge','cellIns','delText','delInstrText']){const els=[...doc.getElementsByTagNameNS(W,tag)];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e))}
+return c}
+
+async function doRev(z){let c=0;const fs=['word/document.xml'];z.forEach(p=>{if(/^word\/(header|footer|footnotes|endnotes)\d*\.xml$/.test(p))fs.push(p)});
+for(const p of fs){const f=z.file(p);if(!f)continue;const d=px(await rx(f));if(d.querySelector('parsererror'))continue;c+=accRev(d);z.file(p,sx(d))}
+const st=z.file('word/settings.xml');if(st){const d=px(await rx(st));if(!d.querySelector('parsererror')){const els=[...d.getElementsByTagNameNS(W,'trackRevisions')];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e));z.file('word/settings.xml',sx(d))}}
+return c}
+
+// Remove all comments — main parts, references in document, relationships, content types
+const COMMENT_PARTS=['word/comments.xml','word/commentsExtended.xml','word/commentsIds.xml','word/commentsExtensible.xml','word/people.xml','word/threadedComments.xml'];
+const COMMENT_REL_TYPES=['http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments','http://schemas.microsoft.com/office/2011/relationships/commentsExtended','http://schemas.microsoft.com/office/2016/09/relationships/commentsIds','http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible','http://schemas.microsoft.com/office/2011/relationships/people','http://schemas.microsoft.com/office/2018/08/relationships/threadedComment'];
+async function doComm(z){let c=0;
+// 1. Remove comment reference elements from document body & related parts
+const fs=['word/document.xml'];z.forEach(p=>{if(/^word\/(header|footer|footnotes|endnotes)\d*\.xml$/.test(p))fs.push(p)});
+for(const p of fs){const f=z.file(p);if(!f)continue;const d=px(await rx(f));if(d.querySelector('parsererror'))continue;
+  for(const tag of['commentRangeStart','commentRangeEnd','commentReference','annotationRef']){
+    const els=[...d.getElementsByTagNameNS(W,tag)];c+=els.length;els.forEach(e=>e.parentNode.removeChild(e))}
+  // Remove empty <w:r> wrappers that only contained commentReference
+  const runs=[...d.getElementsByTagNameNS(W,'r')];
+  for(const r of runs){if(r.childNodes.length===0||(r.childNodes.length===1&&r.firstChild.localName==='rPr'))r.parentNode.removeChild(r)}
+  z.file(p,sx(d))}
+// 2. Delete comment part files
+for(const p of COMMENT_PARTS){if(z.file(p)){z.remove(p);c++}}
+// 3. Delete comment-related rels files
+const relPaths=['word/_rels/comments.xml.rels','word/_rels/commentsExtended.xml.rels'];
+for(const p of relPaths){if(z.file(p)){z.remove(p);c++}}
+// 4. Remove comment-related Relationships from document.xml.rels
+const docRels='word/_rels/document.xml.rels',drf=z.file(docRels);
+if(drf){const d=px(await rx(drf));if(!d.querySelector('parsererror')){
+  [...d.getElementsByTagName('Relationship')].filter(r=>COMMENT_REL_TYPES.includes(r.getAttribute('Type'))).forEach(r=>{r.parentNode.removeChild(r);c++});
+  z.file(docRels,sx(d))}}
+// 5. Remove comment-related Override entries from Content_Types
+const ct=z.file('[Content_Types].xml');if(ct){const d=px(await rx(ct));if(!d.querySelector('parsererror')){
+  [...d.getElementsByTagName('Override')].filter(o=>{
+    const pn=(o.getAttribute('PartName')||'').toLowerCase();
+    return pn.includes('comments')||pn.includes('/people.xml')||pn.includes('threadedcomment');
+  }).forEach(o=>{o.parentNode.removeChild(o);c++});
+  z.file('[Content_Types].xml',sx(d))}}
+return c}
+
+async function doMeta(z,author,unify){let c=0;const now=new Date().toISOString().replace(/\.\d+Z$/,'Z');
+const co=z.file('docProps/core.xml');if(co){let x=await rx(co);for(const t of['dc:creator','cp:lastModifiedBy','dc:description','dc:subject','cp:keywords','cp:category','cp:contentStatus']){x=x.replace(new RegExp(`<${t}>[^<]*</${t}>`,'g'),`<${t}>${author}</${t}>`);c++}
+x=x.replace(/<dcterms:created[^>]*>[^<]*<\/dcterms:created>/g,`<dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>`);
+x=x.replace(/<dcterms:modified[^>]*>[^<]*<\/dcterms:modified>/g,`<dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>`);
+x=x.replace(/<cp:revision>[^<]*<\/cp:revision>/g,'<cp:revision>1</cp:revision>');c+=2;z.file('docProps/core.xml',x)}
+const ap=z.file('docProps/app.xml');if(ap){let x=await rx(ap);for(const t of['Company','Manager']){x=x.replace(new RegExp(`<${t}>[^<]*</${t}>`,'g'),`<${t}></${t}>`);c++}x=x.replace(/<TotalTime>[^<]*<\/TotalTime>/g,'<TotalTime>0</TotalTime>');c++;z.file('docProps/app.xml',x)}
+if(z.file('docProps/custom.xml')){z.remove('docProps/custom.xml');c++}
+if(unify){const fs=['word/document.xml'];z.forEach(p=>{if(/^word\/(header|footer|footnotes|endnotes|comments)\d*\.xml$/.test(p))fs.push(p)});
+for(const p of fs){const f=z.file(p);if(!f)continue;const d=px(await rx(f));if(d.querySelector('parsererror'))continue;const all=d.getElementsByTagNameNS(W,'*');for(let i=0;i<all.length;i++){if(all[i].hasAttribute('w:author')){all[i].setAttribute('w:author',author);c++}}z.file(p,sx(d))}}
+return c}
+
+async function proc(file,tasks,author){const z=await JSZip.loadAsync(file);let tot=0;
+if(tasks.font)tot+=await doFont(z);if(tasks.rev)tot+=await doRev(z);if(tasks.comm)tot+=await doComm(z);if(tasks.meta)tot+=await doMeta(z,author,!tasks.rev);
+const blob=await z.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6},mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+return{blob,totalCleaned:tot,originalSize:file.size,newSize:blob.size}}
+
+// ===== STATE =====
+function ls(k,v){if(v===undefined){try{return JSON.parse(localStorage.getItem('dcs_'+k))}catch{return null}}try{localStorage.setItem('dcs_'+k,JSON.stringify(v))}catch{}}
+const S={files:[],prefix:ls('prefix')||'',suffix:ls('suffix')??'.clean',
+tasks:{font:ls('t_font')??true,rev:ls('t_rev')??true,comm:ls('t_comm')??true,meta:ls('t_meta')??true},
+author:ls('author')||'LEGAL',processing:false,pCount:0,
+lang:(navigator.language||'en').toLowerCase().startsWith('ko')?'ko':'en',
+theme:window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'};
+let fid=0;
+
+function fmt(b){if(!b)return'0 B';const k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return(b/Math.pow(k,i)).toFixed(i>0?1:0)+' '+s[i]}
+function toast(m,ty='info'){const c=document.getElementById('toasts'),e=document.createElement('div');e.className='toast '+ty;e.textContent=m;c.appendChild(e);setTimeout(()=>{e.style.opacity='0';e.style.transition='opacity .3s';setTimeout(()=>e.remove(),300)},3500)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function outN(n,pre,suf){const dot=n.lastIndexOf('.'),base=dot>0?n.substring(0,dot):n,ext=dot>0?n.substring(dot):'';return{full:(pre||'')+base+(suf||'')+ext,pre:pre||'',base,suf:suf||'',ext}}
+
+const I={
+sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>',
+up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>',
+bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>',
+x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+};
+
+// ===== TOOLTIP (JS-positioned, stays in viewport) =====
+function initTooltips(){
+  const tip=document.getElementById('gtip');
+  document.querySelectorAll('.q[data-tip]').forEach(el=>{
+    el.addEventListener('mouseenter',()=>{
+      tip.textContent='';tip.innerText=el.dataset.tip;
+      tip.classList.add('show');
+      const r=el.getBoundingClientRect();
+      const tw=280,th=tip.offsetHeight;
+      let left=r.left+r.width/2-tw/2;
+      let top=r.top-th-8;
+      // Clamp to viewport
+      if(left<8)left=8;
+      if(left+tw>window.innerWidth-8)left=window.innerWidth-tw-8;
+      if(top<8){top=r.bottom+8} // flip below if no room above
+      tip.style.left=left+'px';tip.style.top=top+'px';tip.style.width=tw+'px';
+    });
+    el.addEventListener('mouseleave',()=>{tip.classList.remove('show')});
+  });
+}
+
+// ===== RENDER =====
+function pvHtml(name){const o=outN(name,S.prefix,S.suffix);return`<span class="pre">${esc(o.pre)}</span><span class="base">${esc(o.base)}</span><span class="suf">${esc(o.suf)}</span><span class="ext">${esc(o.ext)}</span>`}
+function getFileTasks(f){const r={};for(const k of['font','rev','comm','meta'])r[k]=f.taskOverrides?.hasOwnProperty(k)?f.taskOverrides[k]:S.tasks[k];return r}
+
+function render(){
+  document.documentElement.setAttribute('data-theme',S.theme);
+  document.documentElement.setAttribute('lang',S.lang);
+  document.title=t('title');
+  const app=document.getElementById('app');
+  const has=S.files.length>0;
+  const allDone=has&&S.files.every(f=>['done','error','nochange'].includes(f.status));
+  const canProc=has&&!S.processing&&S.files.some(f=>f.status==='pending');
+  const done=S.files.filter(f=>f.status==='done');
+  const totO=done.reduce((s,f)=>s+(f.result?.originalSize||0),0);
+  const totN=done.reduce((s,f)=>s+(f.result?.newSize||0),0);
+  const totC=done.reduce((s,f)=>s+(f.result?.totalCleaned||0),0);
+  const pend=S.files.filter(f=>f.status==='pending').length;
+  const errs=S.files.filter(f=>f.status==='error').length;
+  const noc=S.files.filter(f=>f.status==='nochange').length;
+  const pvName=has?S.files[0].file.name:'document.docx';
+
+  app.innerHTML=`
+  <div class="topbar">
+    <div class="topbar-l">${I.chk} ${t('badge')}</div>
+    <div class="topbar-r">
+      <button class="tb ${S.lang==='ko'?'on':''}" id="lko">한국어</button>
+      <button class="tb ${S.lang==='en'?'on':''}" id="len">EN</button>
+      <div class="tdiv"></div>
+      <button class="tb" id="thm">${S.theme==='dark'?I.sun:I.moon}</button>
+    </div>
+  </div>
+  <div class="hdr"><h1>${t('title')}</h1><p>${t('sub')}</p></div>
+
+  <div class="cfg">
+    <div>
+      <div class="cfg-t">${t('taskSec')}</div>
+      <div class="tasks-row">
+        ${['font','rev','comm','meta'].map(k=>{
+          const label=t('t'+{font:'Font',rev:'Rev',comm:'Comm',meta:'Meta'}[k]);
+          const tipText=t('t'+{font:'Font',rev:'Rev',comm:'Comm',meta:'Meta'}[k]+'Tip');
+          return`<div class="tsk ${S.tasks[k]?'on':''}" data-task="${k}">
+            <div class="sw"></div>
+            <span class="tsk-name">${label}</span>
+            <div class="q" data-tip="${esc(tipText)}">?</div>
+          </div>`}).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="cfg-t">${t('cfgSec')}</div>
+      <div class="cfg-fields">
+        <div class="fld"><div class="fld-top"><label>${t('prefix')}</label><div class="q" data-tip="${esc(t('prefTip'))}">?</div></div><input type="text" id="inp_pre" value="${esc(S.prefix)}" placeholder="${t('prefPh')}"></div>
+        <div class="fld"><div class="fld-top"><label>${t('suffix')}</label><div class="q" data-tip="${esc(t('sufTip'))}">?</div></div><input type="text" id="inp_suf" value="${esc(S.suffix)}" placeholder="${t('sufPh')}"></div>
+        ${S.tasks.meta?`<div class="fld"><div class="fld-top"><label>${t('author')}</label><div class="q" data-tip="${esc(t('authTip'))}">?</div></div><input type="text" id="inp_auth" value="${esc(S.author)}" placeholder="${t('authPh')}"></div>`:''}
+      </div>
+      <div class="pv"><span class="pv-label">${t('pvLabel')}</span>${pvHtml(pvName)}</div>
+    </div>
+  </div>
+
+  <div class="dz" id="dz">
+    <div class="dz-icon">${I.up}</div>
+    <div class="dz-text">
+      <strong>${t('drop')} <span class="br">${t('browse')}</span></strong>
+      <span>${t('dropH')}</span>
+    </div>
+    <input type="file" id="fi" accept=".docx" multiple>
+  </div>
+
+  ${has?`<div class="fl">${S.files.map(f=>{
+    const ft=getFileTasks(f);const isDone=['done','nochange','error'].includes(f.status);
+    return`<div class="fi">
+      <div class="fi-top">
+        <div class="fi-icon">DOCX</div>
+        <div class="fi-info">
+          <div class="fi-orig">${esc(f.file.name)}</div>
+          <div class="fi-out">→ ${pvHtml(f.file.name)}</div>
+          <div class="fi-meta">${fmt(f.file.size)}${f.result?` → ${fmt(f.result.newSize)} (${f.result.totalCleaned}${t('u')} ${t('sumI').toLowerCase()})`:''}</div>
+        </div>
+        <div class="fi-actions">
+          ${f.status==='pending'?`<span class="st st-p">${t('pending')}</span>`:''}
+          ${f.status==='processing'?`<span class="st st-w"><span class="spinner"></span>${t('processing')}</span>`:''}
+          ${f.status==='done'?`<span class="st st-d">✓ ${t('done')}</span>`:''}
+          ${f.status==='nochange'?`<span class="st st-n">${t('nochange')}</span>`:''}
+          ${f.status==='error'?`<span class="st st-e" title="${esc(f.error||'')}">✕ ${t('error')}</span>`:''}
+          ${f.status==='done'?`<button class="ib dl" data-dlid="${f.id}" title="${t('dl')}">${I.dl}</button>`:''}
+          ${!S.processing?`<button class="ib rm" data-rmid="${f.id}" title="${t('remove')}">${I.x}</button>`:''}
+        </div>
+      </div>
+      <div class="fi-tasks">
+        ${['font','rev','comm','meta'].map(k=>{
+          const on=ft[k];
+          const shortLabel=t('t'+{font:'Font',rev:'Rev',comm:'Comm',meta:'Meta'}[k]+'S');
+          const cls=isDone?(on?'done':'off-done'):(on?'on':'');
+          return`<div class="ft ${cls}" data-fid="${f.id}" data-ftask="${k}"><div class="ft-dot"></div>${shortLabel}</div>`}).join('')}
+      </div>
+    </div>`}).join('')}</div>`:''}
+
+  ${S.processing?`<div class="prog"><div class="prog-info"><span>${t('prog')} ${S.pCount}/${S.files.length}</span><span>${Math.round(S.pCount/S.files.length*100)}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${S.pCount/S.files.length*100}%"></div></div></div>`:''}
+
+  ${has?`<div class="acts">
+    ${canProc?`<button class="btn btn-p" id="go">${I.bolt} ${t('go')} (${pend}${t('u')})</button>`:''}
+    ${allDone&&done.length>0?`<button class="btn btn-s" id="dlall">${I.dl} ${t('dlAll')} (${done.length}${t('u')})</button>`:''}
+    <button class="btn btn-g" id="clr">${I.trash} ${t('clear')}</button>
+  </div>`:''}
+
+  ${allDone&&done.length>0?`<div class="sum">
+    <div class="sum-r"><span class="sum-l">${t('sumF')}</span><span class="sum-v">${done.length}${t('dU')}${errs?`, ${errs}${t('eU')}`:''}${noc?`, ${noc}${t('nU')}`:''}</span></div>
+    <div class="sum-r"><span class="sum-l">${t('sumI')}</span><span class="sum-v">${totC}${t('u')}</span></div>
+    <div class="sum-r"><span class="sum-l">${t('sumS')}</span><span class="sum-v hl">${fmt(totO)} → ${fmt(totN)} (${totO>0?'-'+Math.round((1-totN/totO)*100)+'%':'0%'})</span></div>
+  </div>`:''}`;
+  bindEvents();
+  initTooltips();
+}
+
+function addFiles(list){let n=0;for(const f of list){
+  if(!f.name.toLowerCase().endsWith('.docx')){toast(`${f.name}: ${t('tDocx')}`,'error');continue}
+  if(f.size>104857600){toast(`${f.name}: ${t('tBig')}`,'error');continue}
+  if(S.files.some(x=>x.file.name===f.name&&x.file.size===f.size))continue;
+  S.files.push({id:++fid,file:f,status:'pending',result:null,error:null,taskOverrides:null});n++}
+  if(n)render()}
+
+async function go(){
+  const anyTask=S.files.some(f=>{const ft=getFileTasks(f);return ft.font||ft.rev||ft.comm||ft.meta});
+  if(!anyTask){toast(t('minT'),'error');return}
+  S.processing=true;S.pCount=0;render();
+  for(const f of S.files){
+    if(f.status!=='pending'){S.pCount++;continue}
+    const ft=getFileTasks(f);
+    if(!ft.font&&!ft.rev&&!ft.comm&&!ft.meta){f.status='nochange';f.result={blob:null,totalCleaned:0,originalSize:f.file.size,newSize:f.file.size};S.pCount++;render();continue}
+    f.status='processing';render();
+    try{const r=await proc(f.file,ft,S.author||'LEGAL');f.status=r.totalCleaned===0?'nochange':'done';f.result=r;f.executedTasks={...ft}}catch(e){f.status='error';f.error=e.message||'Unknown'}
+    S.pCount++;render()}
+  S.processing=false;render();
+  const dc=S.files.filter(f=>f.status==='done').length,nc=S.files.filter(f=>f.status==='nochange').length;
+  if(dc)toast(`${dc}${t('tDone')}`,'success');if(nc)toast(`${nc}${t('tNoc')}`,'info')}
+
+function dlF(f){if(!f.result?.blob)return;const u=URL.createObjectURL(f.result.blob),a=document.createElement('a');a.href=u;a.download=outN(f.file.name,S.prefix,S.suffix).full;a.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+async function dlAll(){const d=S.files.filter(f=>f.status==='done'&&f.result?.blob);if(d.length===1){dlF(d[0]);return}
+const z=new JSZip();for(const f of d)z.file(outN(f.file.name,S.prefix,S.suffix).full,f.result.blob);
+const b=await z.generateAsync({type:'blob',compression:'DEFLATE'});const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='docx_standardized.zip';a.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+
+function bindEvents(){
+  const dz=document.getElementById('dz'),fi=document.getElementById('fi');
+  if(dz){dz.onclick=()=>fi.click();dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=e=>{e.preventDefault();dz.classList.remove('over')};dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files.length)addFiles(e.dataTransfer.files)}}
+  if(fi)fi.onchange=e=>{if(e.target.files.length)addFiles(e.target.files);e.target.value=''};
+  document.getElementById('lko')?.addEventListener('click',()=>{S.lang='ko';render()});
+  document.getElementById('len')?.addEventListener('click',()=>{S.lang='en';render()});
+  document.getElementById('thm')?.addEventListener('click',()=>{S.theme=S.theme==='dark'?'light':'dark';render()});
+
+  document.querySelectorAll('.tsk[data-task]').forEach(el=>{el.addEventListener('click',e=>{
+    if(e.target.closest('.q'))return;const k=el.dataset.task;const nv=!S.tasks[k];
+    if(!nv&&!Object.keys(S.tasks).filter(x=>x!==k).some(x=>S.tasks[x])){toast(t('minT'),'error');return}
+    S.tasks[k]=nv;ls('t_'+k,nv);render()})});
+
+  document.querySelectorAll('.ft[data-fid]').forEach(el=>{el.addEventListener('click',()=>{
+    const fObj=S.files.find(f=>f.id===parseInt(el.dataset.fid));
+    if(!fObj||['done','nochange','error'].includes(fObj.status)||S.processing)return;
+    const k=el.dataset.ftask;if(!fObj.taskOverrides)fObj.taskOverrides={};
+    const cur=fObj.taskOverrides.hasOwnProperty(k)?fObj.taskOverrides[k]:S.tasks[k];
+    fObj.taskOverrides[k]=!cur;render()})});
+
+  const ip=document.getElementById('inp_pre'),is=document.getElementById('inp_suf'),ia=document.getElementById('inp_auth');
+  if(ip)ip.oninput=()=>{S.prefix=ip.value;ls('prefix',S.prefix);updPv()};
+  if(is)is.oninput=()=>{S.suffix=is.value;ls('suffix',S.suffix);updPv()};
+  if(ia)ia.oninput=()=>{S.author=ia.value;ls('author',S.author)};
+
+  document.getElementById('go')?.addEventListener('click',go);
+  document.getElementById('dlall')?.addEventListener('click',dlAll);
+  document.getElementById('clr')?.addEventListener('click',()=>{S.files=[];S.pCount=0;render()});
+  document.querySelectorAll('[data-dlid]').forEach(b=>{b.addEventListener('click',e=>{e.stopPropagation();const f=S.files.find(f=>f.id===parseInt(b.dataset.dlid));if(f)dlF(f)})});
+  document.querySelectorAll('[data-rmid]').forEach(b=>{b.addEventListener('click',e=>{e.stopPropagation();S.files=S.files.filter(f=>f.id!==parseInt(b.dataset.rmid));render()})});
+}
+
+function updPv(){
+  const pvEl=document.querySelector('.pv');
+  if(pvEl){const name=S.files.length>0?S.files[0].file.name:'document.docx';pvEl.innerHTML=`<span class="pv-label">${t('pvLabel')}</span>${pvHtml(name)}`}
+  document.querySelectorAll('.fi-out').forEach((el,i)=>{if(S.files[i])el.innerHTML='→ '+pvHtml(S.files[i].file.name)});
+}
+
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length)addFiles(e.dataTransfer.files)});
+window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',e=>{S.theme=e.matches?'dark':'light';render()});
+render();
+</script>
+</body>
+</html>
